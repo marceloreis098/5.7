@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -23,6 +24,9 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [companyName, setCompanyName] = useState('MRR INFORMATICA');
   const [isSsoEnabled, setIsSsoEnabled] = useState(false);
+  const [appTitle, setAppTitle] = useState('Inventário Pro');
+  const [appLogo, setAppLogo] = useState('');
+
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -46,6 +50,8 @@ const App: React.FC = () => {
             const settings = await getSettings();
             setCompanyName(settings.companyName || 'MRR INFORMATICA');
             setIsSsoEnabled(settings.isSsoEnabled || false);
+            setAppTitle(settings.appTitle || 'Inventário Pro');
+            setAppLogo(settings.appLogo || '');
         } catch (error) {
             console.error("Failed to fetch settings:", error);
         }
@@ -140,7 +146,7 @@ const App: React.FC = () => {
       case 'Auditoria':
         return <AuditLog />;
       case 'Configurações':
-        return <Settings currentUser={currentUser} onUserUpdate={handleUserUpdate}/>;
+        return <Settings currentUser={currentUser} onUserUpdate={handleUserUpdate} onSettingsUpdate={fetchSettings}/>;
       default:
         return <Dashboard setActivePage={setActivePage} currentUser={currentUser} />;
     }
@@ -166,6 +172,8 @@ const App: React.FC = () => {
         pages={pages}
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
+        appTitle={appTitle}
+        appLogo={appLogo}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header

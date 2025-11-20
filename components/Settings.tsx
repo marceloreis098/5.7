@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, AppSettings, License } from '../types';
 import Icon from './common/Icon';
 import { getSettings, saveSettings, checkApiStatus, checkDatabaseBackupStatus, backupDatabase, restoreDatabase, clearDatabase, getLicenseTotals, getLicenses } from '../services/apiService';
@@ -10,6 +10,7 @@ import PeriodicUpdate from './PeriodicUpdate';
 interface SettingsProps {
     currentUser: User;
     onUserUpdate: (updatedUser: User) => void;
+    onSettingsUpdate?: () => void; // Callback para atualizar o App
 }
 
 const DEFAULT_ENTREGA_TEMPLATE = `
@@ -105,12 +106,14 @@ const SettingsToggle: React.FC<{
 );
 
 
-const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
+const Settings: React.FC<SettingsProps> = ({ currentUser, onSettingsUpdate }) => {
     const [settings, setSettings] = useState<Partial<AppSettings>>({
         isSsoEnabled: false,
         is2faEnabled: false,
         require2fa: false,
         hasInitialConsolidationRun: false,
+        appTitle: 'Inventário Pro',
+        appLogo: ''
     });
     const [termoEntregaTemplate, setTermoEntregaTemplate] = useState('');
     const [termoDevolucaoTemplate, setTermoDevolucaoTemplate] = useState('');
@@ -121,8 +124,9 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
     const [isCheckingGeminiKey, setIsCheckingGeminiKey] = useState(false);
     const [backupStatus, setBackupStatus] = useState<{ hasBackup: boolean; backupTimestamp?: string } | null>(null);
     const [isDatabaseActionLoading, setIsDatabaseActionLoading] = useState(false);
-    const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'security' | 'database' | 'integration' | 'import' | 'termo'>('general');
+    const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'customization' | 'security' | 'database' | 'integration' | 'import' | 'termo'>('general');
     const [productNames, setProductNames] = useState<string[]>([]);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
 
     const checkGeminiApiKeyStatus = async () => {
@@ -164,6 +168,8 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
                     is2faEnabled: data.is2faEnabled || false,
                     require2fa: data.require2fa || false,
                     hasInitialConsolidationRun: data.hasInitialConsolidationRun || false,
+                    appTitle: data.appTitle || 'Inventário Pro',
+                    appLogo: data.appLogo || ''
                 });
                 setTermoEntregaTemplate(data.termo_entrega_template || DEFAULT_ENTREGA_TEMPLATE);
                 setTermoDevolucaoTemplate(data.termo_devolucao_template || DEFAULT_DEVOLUCAO_TEMPLATE);
@@ -208,6 +214,21 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
         const { name, value } = e.target;
         setSettings(prev => ({ ...prev, [name]: value }));
     };
+
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                alert("A imagem deve ter no máximo 2MB.");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setSettings(prev => ({ ...prev, appLogo: reader.result as string }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
     
     const handleSaveSettings = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -220,6 +241,7 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
             };
             await saveSettings(finalSettings as AppSettings, currentUser.username);
             alert("Configurações salvas com sucesso!");
+            if (onSettingsUpdate) onSettingsUpdate(); // Refresh main app state
         } catch (error: any) {
             alert(`Falha ao salvar configurações: ${error.message}`);
         } finally {
@@ -349,6 +371,7 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
 
     const settingsTabs = [
         { id: 'general', label: 'Geral', icon: 'Settings' },
+        { id: 'customization', label: 'Personalização', icon: 'Palette', adminOnly: true },
         { id: 'security', label: 'Segurança', icon: 'ShieldCheck' },
         { id: 'termo', label: 'Termos', icon: 'FileText', adminOnly: true },
         { id: 'integration', label: 'Integração Gemini', icon: 'Bot' },
@@ -516,6 +539,74 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeSettingsTab === 'customization' && currentUser.role === UserRole.Admin && (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="p-6 bg-gray-50 dark:bg-dark-bg rounded-lg border dark:border-dark-border">
+                                <h3 className="text-lg font-bold text-brand-secondary dark:text-dark-text-primary mb-4 flex items-center gap-2">
+                                    <Icon name="Palette" size={20} />
+                                    Identidade Visual
+                                </h3>
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-2">
+                                            Nome da Aplicação (Topo da Barra Lateral)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="appTitle"
+                                            value={settings.appTitle || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full p-3 border dark:border-dark-border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-dark-text-primary"
+                                            placeholder="Ex: Inventário Pro"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-2">
+                                            Logo da Aplicação
+                                        </label>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 border dark:border-dark-border rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                                                {settings.appLogo ? (
+                                                    <img src={settings.appLogo} alt="Logo Preview" className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <Icon name="Image" size={32} className="text-gray-400" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <input
+                                                    type="file"
+                                                    ref={logoInputRef}
+                                                    onChange={handleLogoChange}
+                                                    accept="image/png, image/jpeg, image/svg+xml"
+                                                    className="hidden"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => logoInputRef.current?.click()}
+                                                        className="px-4 py-2 bg-brand-secondary text-white rounded-lg hover:bg-brand-dark transition-colors text-sm flex items-center gap-2"
+                                                    >
+                                                        <Icon name="Upload" size={16} /> Carregar Imagem
+                                                    </button>
+                                                    {settings.appLogo && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSettings(prev => ({ ...prev, appLogo: '' }))}
+                                                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm flex items-center gap-2"
+                                                        >
+                                                            <Icon name="Trash2" size={16} /> Remover
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-1">Recomendado: PNG ou SVG com fundo transparente. Máx 2MB.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -720,7 +811,7 @@ const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
                         </div>
                     )}
 
-                    {['general', 'security', 'termo'].includes(activeSettingsTab) && currentUser.role === UserRole.Admin && (
+                    {['general', 'customization', 'security', 'termo'].includes(activeSettingsTab) && currentUser.role === UserRole.Admin && (
                         <div className="flex justify-end pt-4 border-t dark:border-dark-border">
                             <button type="submit" disabled={isSaving} className="bg-brand-primary text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2">
                                 <Icon name="Save" size={18} />

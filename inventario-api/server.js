@@ -94,6 +94,14 @@ const ensureCriticalSchema = async (connection) => {
     // 3. Verificar Tabela USERS (Correção para erro de 2FA)
     await checkAndAddColumn('users', 'twoFASecret', 'VARCHAR(255) NULL');
     await checkAndAddColumn('users', 'is2FAEnabled', 'BOOLEAN DEFAULT FALSE');
+    
+    // 4. Atualizar coluna de configuração para suportar imagens (LONGTEXT)
+    try {
+        await connection.query("ALTER TABLE app_config MODIFY config_value LONGTEXT");
+        console.log("Auto-repair: Updated app_config.config_value to LONGTEXT");
+    } catch (err) {
+        console.error("Error updating app_config column type:", err.message);
+    }
 
     console.log("Critical schema check complete.");
 };
@@ -209,7 +217,7 @@ const runMigrations = async () => {
                 CREATE TABLE IF NOT EXISTS app_config (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     config_key VARCHAR(255) NOT NULL UNIQUE,
-                    config_value TEXT
+                    config_value LONGTEXT
                 );`
             },
             {
@@ -288,6 +296,13 @@ const runMigrations = async () => {
             { id: 27, sql: "ALTER TABLE licenses ADD COLUMN empresa VARCHAR(255) NULL;" },
             { // Migration 28: Remove UNIQUE constraint from serial to allow multiple records with same serial (diff users)
                 id: 28, sql: "ALTER TABLE equipment DROP INDEX serial;" 
+            },
+            {
+                // Migration 29: Add default app settings
+                id: 29, sql: `
+                INSERT IGNORE INTO app_config (config_key, config_value) VALUES ('appTitle', 'Inventário Pro');
+                INSERT IGNORE INTO app_config (config_key, config_value) VALUES ('appLogo', '');
+                `
             }
         ];
         
